@@ -1,0 +1,79 @@
+# Name: Kelbi Hall
+# Date: 2025-02-23
+# Purpose: ESS 330 daily exercise 8
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(readr)
+
+covid_data <- read_csv("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv")
+
+state_info <- data.frame(
+  state_name = state.name,
+  state_abbr = state.abb,
+  region = state.region,
+  stringsAsFactors = FALSE
+)
+
+
+covid_data_joined <- covid_data %>%
+  left_join(state_info, by = c("state" = "state_name")) %>%
+  filter(!is.na(region))
+
+
+covid_region_summary <- covid_data_joined %>%
+  group_by(region, date) %>%
+  summarize(
+    daily_cases = sum(cases, na.rm = TRUE),
+    daily_deaths = sum(deaths, na.rm = TRUE)
+  ) %>%
+  arrange(region, date) %>%
+  mutate(
+    cumulative_cases = cumsum(daily_cases),
+    cumulative_deaths = cumsum(daily_deaths)
+  )
+
+
+
+covid_long <- covid_region_summary %>%
+  pivot_longer(
+    cols = c(cumulative_cases, cumulative_deaths),
+    names_to = "metric",
+    values_to = "count"
+  )
+
+
+covid_plot <- ggplot(covid_long, aes(x = date, y = count, color = metric)) +
+  geom_line(size = 1.1, alpha = 0.8) +  # Thicker, transparent lines
+  facet_wrap(~ region, scales = "free_y") +
+  labs(
+    title = "Cumulative COVID-19 Cases and Deaths by Region",
+    subtitle = "Data from NY Times Repository",
+    x = "Date",
+    y = "Count",
+    color = "Metric"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 18, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 14),
+    legend.position = "bottom",
+    panel.grid.major = element_line(color = "gray90"),
+    panel.grid.minor = element_blank()
+  ) +
+  scale_color_manual(
+    values = c("cumulative_cases" = "red", "cumulative_deaths" = "blue"),
+    labels = c("Cumulative Cases", "Cumulative Deaths")
+  ) +
+  scale_x_date(date_labels = "%Y", date_breaks = "6 months")
+
+
+print(covid_plot)
+
+
+if (!dir.exists("img")) {
+  dir.create("img")
+}
+ggsave("img/enhanced_covid_cumulative_by_region.png", plot = covid_plot, width = 12, height = 8)
+
